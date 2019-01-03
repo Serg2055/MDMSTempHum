@@ -12,6 +12,7 @@
 #include <MySensors.h>
 #include <Wire.h>
 #include <Sodaq_SHT2x.h>
+#include <EEPROM.h>
 
 #define CONNECT_PIN  4
 #define BAT_PIN      A0 
@@ -59,6 +60,11 @@ void setup() {
 
   Wire.begin();
   Serial.begin(115200);
+
+  // Clear eeprom
+  for (int i=0;i<512;i++) {
+    EEPROM.write(i, 0xff);
+  }  
 
   // Setup pins
   pinMode(CONNECT_PIN, INPUT_PULLUP);
