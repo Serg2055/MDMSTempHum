@@ -21,8 +21,8 @@
 #include <avr/wdt.h>
 
 //==== NODE_SENSORS
-#define SensTemp         1   // V_TEMP
-#define SensHum          2   // V_NUM
+#define SensTemp      1   // V_TEMP
+#define SensHum       2   // V_NUM
 
 #define SensUID       200
 #define SensNewID     201     // V_VAR1
@@ -36,6 +36,7 @@
 #define cFirstSmartSleepCnt 2    // Start smartSleep count
 #define cDefSleepTimeMin    15   // Default sleep time
 //unsigned long cLongSmartSleepCnt  
+#define cNoneVal 255
 
 MyMessage msgTemp(SensTemp, V_TEMP);
 MyMessage msgHum(SensHum,   V_HUM);
@@ -47,8 +48,9 @@ int DaySmartCnt = 0; // Day smartSleep counter
 int DaySmartVal = 0; // Day smartSleep value
 
 // Last values
-float LastTemp = 0;
-float LastHum = 0;
+byte  LastBattery = cNoneVal;
+float LastTemp = cNoneVal;
+float LastHum = cNoneVal;
 
 void(* resetFunc) (void) = 0;
 
@@ -89,6 +91,10 @@ void loop(){
   if (DaySmartVal != 0){
     DaySmartCnt--;
     if (DaySmartCnt <= 0) {
+      LastTemp = cNoneVal;
+      LastHum = cNoneVal;
+      LastBattery = cNoneVal;
+      
       DaySmartCnt = DaySmartVal;
       smartSleep(SLEEP_TIME);
       return;
@@ -134,29 +140,42 @@ void receive(const MyMessage &message) {
   StartSmartSleepCnt = cFirstSmartSleepCnt;
 }
 
+float RoundEx(float val){
+  return round( val / 0.25 ) * 0.25;
+}
+
 void SendDevInfo(){
-  float Temp = SHT2x.GetTemperature();
-  float Hum  = SHT2x.GetHumidity();
+  float Temp = RoundEx(SHT2x.GetTemperature());
+  float Hum  = RoundEx(SHT2x.GetHumidity());
   
   // battery
-  int BattP = constrain(map(analogRead(BATTERY_PIN), Min_Batt, Max_Batt, 0, 100), 0, 100);
+  byte BattP = constrain(map(analogRead(BATTERY_PIN), Min_Batt, Max_Batt, 0, 100), 0, 100);
   
   // Temp
   if (LastTemp != Temp) {
-    send(msgTemp.set(Temp, 1));
-    LastTemp = Temp;
+    if (send(msgTemp.set(Temp, 1), true)) {
+      LastTemp = Temp;
+    } else {
+      LastTemp = cNoneVal;
+    }
     wait(1);
   }
   
   // Humidity
   if (LastHum != Hum) {
-    send(msgHum.set(Hum, 0));
-    LastHum = Hum;
+    if (send(msgHum.set(Hum, 0), true)) {
+      LastHum = Hum;
+    } else {
+      LastHum = cNoneVal;
+    }
     wait(1);
   }
   
   // Battery
-  sendBatteryLevel(BattP);
+  if (LastBattery != BattP){
+    sendBatteryLevel(BattP);
+    LastBattery = BattP;
+  }
 }
 
 void SetTime(byte L){
